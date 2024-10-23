@@ -3,13 +3,17 @@ const methodOverride = require('method-override');
 const morgan = require('morgan');
 const session = require('express-session');
 const MongoStore = require('connect-mongo');
+const isSignedIn = require('./middleware/is-signed-in.js');
+const passUserToView = require('./middleware/pass-user-to-view.js');
 const addUserToViews = require('./middleware/addUserToViews');
 require('dotenv').config();
 require('./config/database');
 
 // Controllers
+
+const applicationsController = require('./controllers/applications.js');
 const authController = require('./controllers/auth');
-const isSignedIn = require('./middleware/isSignedIn');
+// const isSignedIn = require('./middleware/isSignedIn');
 
 const app = express();
 // Set the port from environment variable or default to 3000
@@ -33,12 +37,19 @@ app.use(
     }),
   })
 );
-
+app.use(passUserToView);
 app.use(addUserToViews);
 
 // Public Routes
-app.get('/', async (req, res) => {
-  res.render('index.ejs');
+app.get('/', (req, res) => {
+  // Check if the user is signed in
+  if (req.session.user) {
+    // Redirect signed-in users to their applications index
+    res.redirect(`/users/${req.session.user._id}/applications`);
+  } else {
+    // Show the homepage for users who are not signed in
+    res.render('index.ejs');
+  }
 });
 
 app.use('/auth', authController);
@@ -46,14 +57,8 @@ app.use('/auth', authController);
 // Protected Routes
 app.use(isSignedIn);
 
-app.get('/protected', async (req, res) => {
-  if (req.session.user) {
-    res.send(`Welcome to the party ${req.session.user.username}.`);
-  } else {
-    res.sendStatus(404);
-    // res.send('Sorry, no guests allowed.');
-  }
-});
+app.use('/users/:userId/applications', applicationsController);
+
 
 app.listen(port, () => {
   // eslint-disable-next-line no-console
